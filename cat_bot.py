@@ -28,6 +28,7 @@ def format_meal_status():
 
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("📡 Chat ID is:", update.effective_chat.id)
     keyboard = [[
         InlineKeyboardButton("INSIDE", callback_data="INSIDE"),
         InlineKeyboardButton("OUTSIDE", callback_data="OUTSIDE")
@@ -101,14 +102,34 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def daily_reset():
     while True:
         now = datetime.now()
-        next_reset = datetime.combine(now.date(), datetime.min.time()).replace(day=now.day + 1)
-        wait_seconds = (next_reset - now).total_seconds()
+        # Calculate next 6:00 AM
+        tomorrow = now.date() + timedelta(days=1)
+        next_6am = datetime.combine(tomorrow, datetime.min.time()).replace(hour=6)
+        wait_seconds = (next_6am - now).total_seconds()
+        
         await asyncio.sleep(wait_seconds)
 
+        # Reset meal tracker
         meal_status["breakfast"] = False
         meal_status["dinner"] = False
         meal_status["last_updated"] = date.today()
-        print("✅ Meal tracker reset at midnight.")
+        print("✅ Meal tracker reset and reminder sent at 6 AM.")
+
+        # Broadcast to your main chat (replace CHAT_ID with actual chat ID)
+        try:
+            keyboard = [[
+                InlineKeyboardButton("Ate Breakfast", callback_data="meal_breakfast"),
+                InlineKeyboardButton("Ate Dinner", callback_data="meal_dinner")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await app.bot.send_message(
+                chat_id=os.getenv("CHAT_ID"),  # You must set this env variable
+                text=format_meal_status(),
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            print("⚠️ Could not send daily /meals message:", e)
 
 # --- Run the Bot ---
 TOKEN = os.getenv("BOT_TOKEN")
