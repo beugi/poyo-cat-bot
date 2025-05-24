@@ -1,3 +1,4 @@
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 from datetime import datetime
@@ -45,7 +46,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_reply_markup(reply_markup=None)
 
 # ⬇️ Replace this with your actual token
-TOKEN = "7124538408:AAGrRKu9pKc6NdIdwEr-tAG82lMV-uiLKcU"
+TOKEN = os.getenv("BOT_TOKEN")
 
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
