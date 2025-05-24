@@ -80,9 +80,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("meal_"):
         if query.data == "meal_breakfast":
-            meal_status["breakfast"] = True
+            meal_status["breakfast"] = not meal_status["breakfast"]
         elif query.data == "meal_dinner":
-            meal_status["dinner"] = True
+            meal_status["dinner"] = not meal_status["dinner"]
 
         keyboard = [[
             InlineKeyboardButton("Ate Breakfast", callback_data="meal_breakfast"),
