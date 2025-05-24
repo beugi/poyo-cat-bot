@@ -1,11 +1,32 @@
 import os
+import asyncio
+from datetime import datetime, date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from datetime import datetime
 
+# --- CAT STATUS ---
 cat_status = "Unknown"
 last_updated = "Never"
 
+# --- MEAL TRACKER ---
+meal_status = {
+    "breakfast": False,
+    "dinner": False,
+    "last_updated": date.today()
+}
+
+def format_meal_status():
+    today = date.today()
+    if meal_status["last_updated"] != today:
+        meal_status["breakfast"] = False
+        meal_status["dinner"] = False
+        meal_status["last_updated"] = today
+
+    b = "✅ Breakfast" if meal_status["breakfast"] else "⬜ Breakfast"
+    d = "✅ Dinner" if meal_status["dinner"] else "⬜ Dinner"
+    return f"🥣 Meal log for {today.strftime('%b %d')}:\n{b}\n{d}"
+
+# --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[
         InlineKeyboardButton("INSIDE", callback_data="INSIDE"),
@@ -17,38 +38,91 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
+# --- /meals ---
+async def meals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[
+        InlineKeyboardButton("Ate Breakfast", callback_data="meal_breakfast"),
+        InlineKeyboardButton("Ate Dinner", callback_data="meal_dinner")
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        format_meal_status(),
+        reply_markup=reply_markup
+    )
+
+# --- Button Handler ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global cat_status, last_updated
 
     query = update.callback_query
     await query.answer()
 
-    cat_status = query.data
+    # Handle POYO status toggle
+    if query.data in ["INSIDE", "OUTSIDE"]:
+        cat_status = query.data
+        user = query.from_user.first_name or query.from_user.username or "Someone"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        last_updated = f"{cat_status} by {user} at {timestamp}"
 
-    user = query.from_user.first_name or query.from_user.username or "Someone"
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    last_updated = f"{cat_status} by {user} at {timestamp}"
+        keyboard = [[
+            InlineKeyboardButton("INSIDE", callback_data="INSIDE"),
+            InlineKeyboardButton("OUTSIDE", callback_data="OUTSIDE")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-    keyboard = [[
-        InlineKeyboardButton("INSIDE", callback_data="INSIDE"),
-        InlineKeyboardButton("OUTSIDE", callback_data="OUTSIDE")
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"🐱 POYO is: {cat_status}\nLast updated: {last_updated}",
+            reply_markup=reply_markup
+        )
 
-    # 1. Send new message with updated status and buttons
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text=f"🐱 POYO is: {cat_status}\nLast updated: {last_updated}",
-        reply_markup=reply_markup
-    )
+        await query.edit_message_reply_markup(reply_markup=None)
 
-    # 2. Remove buttons from the previous message
-    await query.edit_message_reply_markup(reply_markup=None)
+    # Handle meal buttons
+    elif query.data.startswith("meal_"):
+        if query.data == "meal_breakfast":
+            meal_status["breakfast"] = True
+        elif query.data == "meal_dinner":
+            meal_status["dinner"] = True
 
-# ⬇️ Replace this with your actual token
+        keyboard = [[
+            InlineKeyboardButton("Ate Breakfast", callback_data="meal_breakfast"),
+            InlineKeyboardButton("Ate Dinner", callback_data="meal_dinner")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=format_meal_status(),
+            reply_markup=reply_markup
+        )
+
+        await query.edit_message_reply_markup(reply_markup=None)
+
+# --- Daily Reset Task ---
+async def daily_reset():
+    while True:
+        now = datetime.now()
+        next_reset = datetime.combine(now.date(), datetime.min.time()).replace(day=now.day + 1)
+        wait_seconds = (next_reset - now).total_seconds()
+        await asyncio.sleep(wait_seconds)
+
+        meal_status["breakfast"] = False
+        meal_status["dinner"] = False
+        meal_status["last_updated"] = date.today()
+        print("✅ Meal tracker reset at midnight.")
+
+# --- Run the Bot ---
 TOKEN = os.getenv("BOT_TOKEN")
-
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("meals", meals))
 app.add_handler(CallbackQueryHandler(button_handler))
-app.run_polling()
+
+async def main():
+    await asyncio.gather(
+        app.run_polling(),
+        daily_reset()
+    )
+
+app.run(main())
