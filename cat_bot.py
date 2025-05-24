@@ -57,7 +57,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Handle POYO status toggle
     if query.data in ["INSIDE", "OUTSIDE"]:
         cat_status = query.data
         user = query.from_user.first_name or query.from_user.username or "Someone"
@@ -78,7 +77,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_reply_markup(reply_markup=None)
 
-    # Handle meal buttons
     elif query.data.startswith("meal_"):
         if query.data == "meal_breakfast":
             meal_status["breakfast"] = True
@@ -125,4 +123,12 @@ async def main():
         daily_reset()
     )
 
-app.run(main())
+# ✅ Railway-compatible (works with existing event loop)
+if __name__ == "__main__":
+    try:
+        import nest_asyncio
+        nest_asyncio.apply()
+    except ImportError:
+        print("⚠️ nest_asyncio not found. Be sure to install it: pip install nest_asyncio")
+
+    asyncio.get_event_loop().run_until_complete(main())
